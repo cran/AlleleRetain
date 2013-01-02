@@ -9,6 +9,7 @@
 # 16 July 2012: changed abbreviated arguments to full (e.g. "TRUE" instead of "T", "ncol" instead of "nc")
 # 20 August 2012:  added "all" option to "startAge" argument
 # 2 January 2013:  Fixed pedigree.summary to work with new version of package pedigree
+# 30 June 2013: Updated user manual to fix error in pdfinfo.  No change to code or function.
 
 ########################################################################
 
