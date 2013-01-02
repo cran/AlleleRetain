@@ -276,7 +276,7 @@ aR.temp <- aRetain(q0 = 0.05, sourceN = 2000, startN = 20, startAge =
 0.77, adsurvivalM = 0.77, nonbrsurv = 0.70, nonbrsurvK = 0.40, juvsurv = 0.60,  
 juvsurvK = 0.30, youngperF = 2.85, SDypF = 1.25, MAXypF = 6, MAXypFK = 6, 
 ypFsex = "female", youngSR = 0.5, trackall = TRUE, GeneCount = "all", nyears = 
-30, nrepl = 30, nreplprint = 10)
+10, nrepl = 20, nreplprint = 10)
 
 aRetain.summary(aR.temp,  GeneCount = "all", alpha=0.05, dropextinct = TRUE)
 indiv.summary(aR.temp, genlength=5, alpha=0.05)

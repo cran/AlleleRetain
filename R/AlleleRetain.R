@@ -6,7 +6,9 @@
 # 15 May 2012: fixed bug for polygynous systems with juvenile starters
 # 1 June 2012: put allele frequency back into output; restructured to use less RAM
 # 13 June 2012: added "printplots"
-# 16 July 2012: changed abbreviated arguments to full (e.g. "TRUE" instead of "T", "ncol" instead of "nc"
+# 16 July 2012: changed abbreviated arguments to full (e.g. "TRUE" instead of "T", "ncol" instead of "nc")
+# 20 August 2012:  added "all" option to "startAge" argument
+# 2 January 2013:  Fixed pedigree.summary to work with new version of package pedigree
 
 ########################################################################
 
@@ -190,7 +192,7 @@ addnew <- function (N, inisurv, startSR, exactSR, sourceN, q0) {
 	newadded
 }	
 
-newinfo <- function (new, type, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID, y, adsurvival, mature, SenesAge, MaxAge, matingSys) {
+newinfo <- function (new, type, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID, y, adsurvival, nonbrsurv, mature, SenesAge, MaxAge, matingSys) {
 ## Get information for each new individual added to the population
 ## Input -
 ## type		type of individual to add (1 = initial founder, 2 = additional founder, 4 = migrant)
@@ -203,14 +205,16 @@ newinfo <- function (new, type, startAge, youngperF, SDypF, MAXypF, meanMLRS, sd
 		typeL <- rep(type, n)
 		if (startAge == "juvenile")	year <- rep(y, n)	# These will be one year old at year 1 (they are added in year 0)
 		if (startAge == "young adult") year<-rep((y-mature),times=n)	# birth year for young adults
-		if(startAge == "adult") {	
+		if(startAge == "adult" | startAge == "all") {	
 			# randomly select age of each individual based on the probability of selecting an adult of each age
 			ages1 <- mature:MaxAge								# adult ages
+			if(startAge == "all") ages1 <- 1:MaxAge				# all ages
 			adsurvivalList <- rep(adsurvival, length(ages1))	# list of survival rate for each adult age
 			for(i in 1:length(ages1))	{				# adjust survival rate for age
 				if(ages1[i] > SenesAge) adsurvivalList[i] <- adsurvival - (adsurvival / (MaxAge - SenesAge)) * (ages1[i] - SenesAge)
+				if(ages1[i] <= mature) adsurvivalList[i] <- nonbrsurv
 			}	
-			indivList <- rep(NA, MaxAge-mature+1)	# list to fill of proportion of individuals alive at each age
+			indivList <- rep(NA, length(ages1))	# list to fill of proportion of individuals alive at each age
 			indivList[1] <- 1
 			for(i in 2:length(indivList)) indivList[i] <- indivList[i-1]*adsurvivalList[i-1]	# proportion of individuals alive at each age.  This is used as the list of probabilities of an individual of each age being selected to add to the population.
 			ages <- sample(x=ages1, size=n, prob=indivList, replace=TRUE)	# current ages
@@ -263,7 +267,7 @@ aRetain <- function (q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile
 ##  migrN	Number of migrants to add (must be a whole number); defaults to 0.
 ##  migrfreq	Interval (number of years) at which to add migrN migrants; must be between 1 and nyears, below; defaults to 1.
 ##  mpriority	TRUE or FALSE:  whether migrants are given priority over locally produced offspring to recruit into any available breeding vacancies; defaults to FALSE.
-##  removeL	TRUE or FALSE: whether to remove the corresponding number of locally produced adults to make room for migrants in the population; only necessary if retainBreeders = “both”/”female”/”male”; will only come into play when population is at K.  Defaults to FALSE.
+##  removeL	TRUE or FALSE: whether to remove the corresponding number of locally produced adults to make room for migrants in the population; only necessary if retainBreeders = “both”/”female”/”male”; occurs even when population is below K.  Defaults to FALSE.
 ##  K	Carrying capacity (population ceiling); defaults to 100.
 ##  Klag	Number of years for which population is held at or below initial size (breeding still occurs); indicates a prolonged bottleneck.  Defaults to 0.
 ##  KAdults    	TRUE (K = number of adults) or FALSE (K = total individuals; subadults, nonbreeders, helpers are also subjected to the limit of K).  Defaults to FALSE.
@@ -305,11 +309,12 @@ aRetain <- function (q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile
 if (q0<=0 | q0>=1) stop ('Initial gene frequency must be between 0 and 1')
 if (startN > sourceN) stop ("'startN' cannot exceed 'sourceN'")
 if (startN < 2) stop ("'startN' must be at least 2")
-if (startAge != "juvenile") if (startAge != "adult") if (startAge != "young adult") stop ("'startAge' must be 'juvenile', 'young adult', or 'adult'")
+if (startAge != "juvenile" & startAge != "adult" & startAge != "young adult" & startAge != "all") stop ("'startAge' must be 'juvenile', 'young adult', 'adult', or 'all'")
 if (startSR<=0 | startSR>=1 | youngSR<=0 | youngSR>=1) stop ("'startSR' and 'youngSR' must be between 0 and 1")
 if (inisurv <=0 | inisurv > 1 | nonbrsurv <=0 | nonbrsurv > 1 | nonbrsurvK <=0 | nonbrsurvK > 1 | juvsurv <=0 | juvsurvK > 1 | adsurvivalF <=0 | adsurvivalF > 1) stop ("Survival rates must be between 0 and 1")
 for(i in 1:length(addN)) { if (!is.wholenumber(addN[i])) stop ("'addN' must be a list of whole numbers")}
 for(i in 1:length(addyrs)){if (!is.wholenumber(addyrs[i])) stop ("'addyrs' must be a list of whole numbers")}
+if(length(addN) != length(addyrs)) stop ("'addN' and 'addyrs' must be vectors of the same length")
 if (!is.wholenumber(migrN)) stop ("'migrN' must be a whole number")
 if (!is.wholenumber(migrfreq)) stop ("'migrfreq' must be a whole number")
 if (migrN > 0) if (migrfreq > nyears) stop ("'migrfreq' > 'nyears' so no migration will occur during this simulation; 'migrfreq' must be < 'nyears' or equal to 0.")
@@ -355,7 +360,7 @@ run.one.repl <- function (r) {
 	## ADD STARTERS TO ESTABLISH POPULATION
     ## Individuals are added as if at the end of a breeding season (autumn).  They will not breed this year, and will be subject to annual mortality (on top of initial mortality) before breeding next year.
 	starters <- addnew(startN, inisurv, startSR, exactSR, sourceN, q0)
-	startersinfo <- matrix(cbind(newinfo(starters, type = 1, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = 1, y=1, adsurvival = mean(adsurvivalF, adsurvivalM), mature, SenesAge, MaxAge, matingSys), rep(0, nrow(starters))), ncol=13)
+	startersinfo <- matrix(cbind(newinfo(starters, type = 1, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = 1, y=1, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv=nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(0, nrow(starters))), ncol=13)
 	indivID <- startersinfo[,1]
 
 	
@@ -392,7 +397,7 @@ run.one.repl <- function (r) {
 				else Mjpp <- MAXypF
 				for(i in 1:nMatings){
 					new <- breed (pairs, parentgenes, parentypp, Mjpp, ypFsex, youngSR)  ## offspring 	
-					newinf <- matrix(cbind(newinfo(matrix(new[,1:3], ncol=3), type=3, startAge = "juvenile", youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID=(max(indivID)+1), y, adsurvival = mean(adsurvivalF, adsurvivalM), mature, SenesAge, MaxAge, matingSys), rep(y, nrow(new))), ncol=13)
+					newinf <- matrix(cbind(newinfo(matrix(new[,1:3], ncol=3), type=3, startAge = "juvenile", youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID=(max(indivID)+1), y, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(y, nrow(new))), ncol=13)
 					newinf[,2] <- new[,4]	# dam ID known for offspring
 					newinf[,3] <- new[,5]	# sire ID known for offspring				
 					juveniles <- matrix(rbind(juveniles, newinf), ncol=13)
@@ -430,7 +435,7 @@ run.one.repl <- function (r) {
 			addNy <- addN[which(addyrs==y)]
 			addstarters <- addnew(addNy, inisurv, startSR, exactSR, sourceN, q0)
 			addinfo <- matrix(nrow=0, ncol=13)
-			addinfo <- matrix(cbind(newinfo(addstarters, type = 2, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = (max(indivID) + 1), y, adsurvival = mean(adsurvivalF, adsurvivalM), mature, SenesAge, MaxAge, matingSys), rep(y, nrow(addstarters))), ncol=13)
+			addinfo <- matrix(cbind(newinfo(addstarters, type = 2, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = (max(indivID) + 1), y, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(y, nrow(addstarters))), ncol=13)
 			indivID <- c(indivID, addinfo[,1])
 			if (startAge == "juvenile") juveniles <- matrix(rbind(juveniles, addinfo), ncol=13)
 			else nonbreeders <- matrix(rbind(nonbreeders, addinfo), ncol=13)	# adults go into nonbreeders matrix until they recruit to breed (or die)
@@ -440,19 +445,20 @@ run.one.repl <- function (r) {
 		if (migrN > 0) if(migrfreq > 0) {
 		if (is.wholenumber(y/migrfreq)){	# migration occurs this year
 			migrants <- addnew(migrN, inisurv, startSR, exactSR, sourceN, q0)
-			migrinfo <- matrix(cbind(newinfo(migrants, type = 4, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = (max(indivID) + 1), y, adsurvival = mean(adsurvivalF, adsurvivalM), mature, SenesAge, MaxAge, matingSys), rep(y, nrow(migrants))), ncol=13)
+			migrinfo <- matrix(cbind(newinfo(migrants, type = 4, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = (max(indivID) + 1), y, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(y, nrow(migrants))), ncol=13)
 			indivID <- c(indivID, migrinfo[,1])
 			if (startAge == "juvenile") juveniles <- matrix(rbind(juveniles, migrinfo), ncol=13)
 			else nonbreeders <- matrix(rbind(nonbreeders, migrinfo), ncol=13)	# adults go into nonbreeders matrix until they recruit to breed (or die)
-			if (removeL == TRUE) { if (numpresent >= K) {	# remove local adults to make room for migrants
+			if (removeL == TRUE) { # remove local adults to make room for migrants
 				adultslive <- c(pairs, singles)
 				adultslive <- adultslive[!(adultslive == 0)]
 				popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=13)
 				poplocals <- subset(popalive, popalive[,7]==3)
-				Lremove <- sample(poplocals[,1], size=migrN)	# locals to remove			
+				if(nrow(poplocals) > migrN) Lremove <- sample(poplocals[,1], size=migrN)	# locals to remove			
+				else Lremove <- poplocals[,1]	# remove ALL locals
 				pairs[pairs %in% Lremove] <- 0	# set flag for later removal
 				singles <- singles[!(singles %in% Lremove)]
-			}}
+			}
 		}}
 		
 		## SURVIVAL
@@ -1044,10 +1050,8 @@ aRetain.summary <- function (adata, GeneCount, alpha=0.05, dropextinct = FALSE) 
 		censusdata <- censusdata1	# ALL replicates will be included in all of the above summaries.
 		cat("Note: All replicates, including those in which the population went extinct, are included in the summary.  This will affect the estimates of population size/composition, mean age, and probability of allele retention given here.\n")
 	}
-
 	nyears2 <- dim(censusdata)[1]
 	nrepl2 <- dim(censusdata)[3]
-	
 	num <- censusdata[,1,]	# number of adults present
 	if(GeneCount == "all"){
 		numnb <- censusdata[,6,]	# number of nonbreeders present
@@ -1060,9 +1064,7 @@ aRetain.summary <- function (adata, GeneCount, alpha=0.05, dropextinct = FALSE) 
 		num <- numall	# all individuals were counted toward allele retention
 	}
 	else if(GeneCount != "adult") stop('GeneCount must equal "adult" or "all".')
-	
 	alleles <- censusdata[,4,]
-		
 	freqs <- matrix(nrow = nyears2, ncol = nrepl2)
 	for(i in 1:nyears2) {
 		for(j in 1:nrepl2) {
@@ -1070,25 +1072,25 @@ aRetain.summary <- function (adata, GeneCount, alpha=0.05, dropextinct = FALSE) 
 		}
 	}
 	
-	MeanNAd   <- apply(censusdata[,1,], 1, mean)
+	MeanNAd   <- apply(censusdata[,1,], 1, mean, na.rm = TRUE)
 	SEN      	<- apply(censusdata[,1,], 1, SE)
 	n        	<- apply(censusdata[,1,], 1, function(x) sum(!is.na(x)))
-	P.retain 	<- apply(censusdata[,4,]>0, 1, mean)
+	P.retain 	<- apply(censusdata[,4,]>0, 1, mean, na.rm = TRUE)
 	P.LCL    	<- Blcl(P.retain, n, alpha)
 	P.UCL    	<- Bucl(P.retain, n, alpha)
 	n1        	<- apply(censusdata1[,1,], 1, function(x) sum(!is.na(x)))
-	P.extant 	<- apply(censusdata1[,1,]>0, 1, mean)
+	P.extant 	<- apply(censusdata1[,1,]>0, 1, mean, na.rm = TRUE)
 	P.xLCL   	<- Blcl(P.extant, n1, alpha)
 	P.xUCL   	<- Bucl(P.extant, n1, alpha)
-	MeanBrF  	<- apply(censusdata[,2,], 1, mean)
+	MeanBrF  	<- apply(censusdata[,2,], 1, mean, na.rm = TRUE)
 	SEBrF    	<- apply(censusdata[,2,], 1, SE)
-	MeanBrM  	<- apply(censusdata[,3,], 1, mean)
+	MeanBrM  	<- apply(censusdata[,3,], 1, mean, na.rm = TRUE)
 	SEBrM    	<- apply(censusdata[,3,], 1, SE)
-	MeanNNonbr   <- apply(censusdata[,6,], 1, mean)
-	MeanNFound	<- apply(censusdata[,7,], 1, mean)
-	MeanNMigr	<- apply(censusdata[,8,], 1, mean)
+	MeanNNonbr   <- apply(censusdata[,6,], 1, mean, na.rm = TRUE)
+	MeanNFound	<- apply(censusdata[,7,], 1, mean, na.rm = TRUE)
+	MeanNMigr	<- apply(censusdata[,8,], 1, mean, na.rm = TRUE)
 	MeanAge 	<- apply(censusdata[,9,], 1, mean, na.rm = TRUE)
-	A.Freq 		<- apply(freqs, 1, mean)
+	A.Freq 		<- apply(freqs, 1, mean, na.rm = TRUE)
 	A.SE		<- apply(freqs, 1, SE)
 	cbind (MeanNAd, SEN, MeanNNonbr, MeanBrF, SEBrF, MeanBrM, SEBrM, MeanNFound, MeanNMigr, MeanAge, P.extant, P.xLCL, P.xUCL, P.retain, P.LCL, P.UCL, A.Freq, A.SE)
 }
@@ -1156,7 +1158,11 @@ pedigree.summary <- function(adata){
 		if(nrow(me) > 0){	# population exists
 			IDdamsire <- data.frame(me[,1], me[,2], me[,3])
 			colnames(IDdamsire) <- c("ID", "dam", "sire")
-			if(nrow(IDdamsire) > 0) Fvalues <- calcInbreeding(IDdamsire)	# calculate F of each individual
+			if(nrow(IDdamsire) > 0){
+				ord <- orderPed(IDdamsire) # Order to work with new requirements for calcInbreeding
+				IDdamsire <- IDdamsire[order(ord),]
+				Fvalues <- calcInbreeding(IDdamsire)	# calculate F of each individual
+			}
 			else Fvalues <- numeric(0)
 			meF <- matrix(cbind(me, c(Fvalues)), ncol=9)	# attach F values to individual information
 			avgF <- rep(NA, nyears)

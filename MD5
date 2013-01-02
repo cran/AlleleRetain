@@ -1,10 +1,10 @@
-0585013db84ee826bc98c71869b1712f *DESCRIPTION
+35347cb04aca923c56c167b4202d3e6a *DESCRIPTION
 87f1817f04bd95373c7d72c7058ea25c *NAMESPACE
-d0331da885dde901ce05e163f8455747 *R/AlleleRetain.R
+dc822961086ac60166e3749e9ab17cd1 *R/AlleleRetain.R
 c59b88cbfca8b29810aaec0140cc8100 *inst/CITATION
 1d8fe6bc6411e1023f1bfb02d2184773 *inst/doc/AlleleRetain_User_Guide.pdf
 4bd3bea9c67b5482ca9d48d416ffa6b7 *man/AlleleRetain-package.Rd
-b6c3a71dae0057fc0ca5edd8b34e0b78 *man/aRetain.Rd
+463dd1bfd46bc46365407435dc270fef *man/aRetain.Rd
 5a22546e54a1db7477b36eaa6434e579 *man/aRetain.summary.Rd
 398a6a7ab9cadc3c931042dcd66ee703 *man/indiv.summary.Rd
 d1e50d168da0c9fa3a2e22acdfd4d764 *man/pedigree.summary.Rd
