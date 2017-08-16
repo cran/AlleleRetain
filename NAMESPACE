@@ -1,3 +1,9 @@
+importFrom("graphics", "close.screen", "plot", "screen",
+    "split.screen")
+importFrom("stats", "qnorm", "rbinom", "rgamma", "rnorm", "rpois",
+    "var")
+importFrom("utils", "flush.console")
+
 export (aRetain)
 export (aRetain.summary)
 export (indiv.summary)
