@@ -12,18 +12,19 @@ with overlapping generations.
 }
 \usage{
 
-aRetain(q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile", 
-    startSR = 0.5, exactSR= FALSE, inisurv = 0.90, addN = 0, addyrs = c(0),  
-    migrN = 0, migrfreq = 1, mpriority = FALSE, removeL = FALSE, K = 100, 
-    Klag = 0, KAdults = FALSE, reprolag = 0, mature = 1, matingSys = 
-    "monogamy", matingLength = "seasonal", meanMLRS = 1, sdMLRS = 0, 
-    reproAgeM = c(1:200), AgeOnMLRS = "age/age", nMatings = 1, 
-    retainBreeders = "male", MaxAge = 25, SenesAge = 10, adsurvivalF = 0.80, 
-    adsurvivalM = 0.80, nonbrsurv = 0.80, nonbrsurvK = 0.80, juvsurv = 
-    0.80,  juvsurvK = 0.80, youngperF = 1.5, SDypF = 0.25, ypF1 = 1, ypF1yr 
-    = 1, MAXypF = 2, MAXypFK = 2, ypFsex = "female", youngSR = 0.5, 
-    trackall = TRUE, GeneCount = "adult", nyears = 50, nrepl = 100, 
-	nreplprint = 10, printplots = FALSE)
+aRetain(q0 = 0.05, sourceN = Inf, 
+	startN = 20, startAge = "juvenile", startSR = 0.5, exactSSR= FALSE, 
+	inisurv = c(1,1,1), addN = 0, addyrs = c(0),  addSR = 0.5, exactASR = FALSE,
+	migrN = 0, migrfreq = 1, migrSR = 0.5, exactMSR = FALSE, mpriority = FALSE, 
+	removeL = FALSE, harvN = 0, harvAge = "all", harvyrs = 0, K = 100, Klag = 0,
+	KAdults = FALSE, reprolag = 0, mature = 1, matingSys = "monogamy", 
+	matingLength = "seasonal", meanMLRS = 1, sdMLRS = 0, reproAgeM = c(1:200), 
+	AgeOnMLRS = "age/age", nMatings = 1, retainBreeders = "male", MaxAge = 25, 
+	SenesAge = 10, adsurvivalF = 0.80, adsurvivalM = 0.80, nonbrsurv = 0.80, 
+	nonbrsurvK = 0.80, juvsurv = 0.80,  juvsurvK = 0.80, youngperF = 1.5, 
+	SDypF = 0.25, ypF1 = 1, ypF1yr = 1, MAXypF = 2, MAXypFK = 2, 
+	ypFsex = "female", youngSR = 0.5, trackall = TRUE, GeneCount = "adult", 
+	nyears = 50, nrepl = 100, nreplprint = 10, printplots = FALSE)
 
 }
 
@@ -40,19 +41,35 @@ aRetain(q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile",
  and senescence specified below) }
  \item{startSR}{ sex ratio (proportion male) of starters, supplementals, 
  and migrants }
- \item{exactSR}{ logical: whether startSR gives the exact sex ratio of 
- individuals released }
+ \item{exactSSR}{ logical: whether startSR gives the exact sex ratio 
+ of individuals released }
  \item{inisurv}{ initial survival rate, as a proportion (range 0-1), of 
- starters, supplementals, and migrants immediately post-release; annual 
- mortality applies after this value is used }
+ individuals released.  Given as a vector, where the first value is for 
+ starters, the second is for additional releases, and third is for migrants.  
+ Annual mortality applies after this value is used.  Defaults to 1 for all three 
+ groups. }
  \item{addN}{ list of numbers of individuals to release in years soon after 
  population establishment ("supplementals") }
  \item{addyrs}{ list of years in which to release supplementals.  Each year 
  corresponds to the number of individuals in the same position in the addN 
  list }
+ \item{addSR}{ sex ratio (proportion male) of supplementals; defaults to 0.5 
+ (must be between 0 and 1).  This can be either a single value, or a vector, 
+ with each element in the vector corresponding to each instance of 
+ supplementation (must be the same length as addN)}
+ \item{exactASR}{ whether addSR gives the exact sex ratio of individuals 
+ released (TRUE) or sexes are assigned randomly based on the probability given 
+ by addSR (FALSE); defaults to FALSE.  This can be either a single value, or a 
+ vector, with each element in the vector corresponding to each instance of 
+ supplementation (must be the same length as addN)}
  \item{migrN}{ number of migrants to add }
  \item{migrfreq}{ interval (number of years) at which to add migrN 
  migrants; must be between 1 and nyears, below }
+ \item{migrSR}{ sex ratio (proportion male) of supplementals; defaults to 0.5 
+ (must be between 0 and 1) }
+ \item{exactMSR}{ whether addSR gives the exact sex ratio of individuals 
+ released (TRUE) or sexes are assigned randomly based on the probability given 
+ by migrSR (FALSE); defaults to FALSE }
  \item{mpriority}{ logical:  whether migrants are given priority over 
  locally produced offspring to recruit into any available breeding 
  vacancies }
@@ -60,6 +77,11 @@ aRetain(q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile",
  locally produced adults to make room for migrants in the population; only 
  necessary if retainBreeders = "both"/"female"/"male"; will only come into 
  play when population is at K }
+ \item{harvN}{ number to be removed in each harvest year }
+ \item{harvAge}{ age of individuals to be harvested (as for 'startAge'). If not 
+ enough individuals of this age are available, the harvest quota (harvN) will 
+ not be filled }
+ \item{harvyrs}{ vector of years in which harvest occurs }
  \item{K}{ carrying capacity (population ceiling) }
  \item{Klag}{ number of years for which population is held at or below 
  initial size (breeding still occurs); indicates a prolonged bottleneck }
@@ -173,13 +195,21 @@ aRetain(q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile",
  \item{trackall}{ logical: whether to track all individuals from the 
  population through the whole simulation; must be TRUE to use indiv.summary 
  or pedigree.summary after running the simulation }
- \item{GeneCount}{ which alleles to count as retained:  those in the "adult" population only, or those in "all" individuals (including subadults and other nonbreeders)}
+ \item{GeneCount}{ which alleles to count as retained:  those in the "adult" 
+ population only, or those in "all" individuals (including subadults and other 
+ nonbreeders)}
  \item{nyears}{ number of years to run the simulation }
  \item{nrepl}{ number of iterations (replicates) to run }
  \item{nreplprint}{ interval (number of replicates) at which to print a 
  message with the current system time.  Allows the user to gauge model 
  progress and to estimate time to completion }
- \item{printplots}{ logical: whether to plot the population growth (number of individuals, as defined by KAdults, present each year) and allele frequency (in the pool defined by GeneCount) as they change over time (TRUE or FALSE).  One line will be plotted for each replicate immediately after it runs.  Can be used to immediately gauge the demographics of the population (e.g. if it will grow as expected); will slow down the simulation by ~ 10-20 percent.  Defaults to FALSE. }
+ \item{printplots}{ logical: whether to plot the population growth (number of 
+ individuals, as defined by KAdults, present each year) and allele frequency (in 
+ the pool defined by GeneCount) as they change over time (TRUE or FALSE).  One 
+ line will be plotted for each replicate immediately after it runs.  Can be used 
+ to immediately gauge the demographics of the population (e.g. if it will grow 
+ as expected); will slow down the simulation by ~ 10-20 percent.  Defaults to 
+ FALSE. }
 }
 
 \details{
@@ -243,21 +273,38 @@ immigrant) in the population.  A pedigree summary function
 (\code{pedigree.summary}) can be used to describe accumulation of inbreeding 
 in the population by calling R package \bold{pedigree}.  
 
-See the AlleleRetain Model Guide (available as a PDF file with this installation, or from the model's website at https://sites.google.com/site/alleleretain/) for more details and an example.
+See the AlleleRetain Model Guide (available as a PDF file with this 
+installation, or from the model's website at 
+https://sites.google.com/site/alleleretain/) for more details and an example.
 
 }
 
 \value{
-\code{aRetain} returns a list of sub-lists, with one sub-list for each replicate which contains two matrices: one that summarizes the population information for that replicate (one row for each year; columns = number of adults, number of breeding females, number of breeding males, number of copies of the rare allele, number of pairs, number of nonbreeders, number of founders remaining, number of migrants alive, mean age of breeding pairs), and one that gives pertinent information for all individuals in that replicate (one row for each individual; columns = ID, dam, sire, origin [1=starter, 2=supplemental, 3=local, 4=immigrant], birth year, number of years alive in the population, number of years bred, year added to population).   The latter matrix includes all individuals if \code{trackall = TRUE}, or only those alive at the end of the simulation if \code{trackall = FALSE}.  Run \code{aRetain.summary}, \code{indiv.summary}, and \code{pedigree.summary} to generate useful output from this information (averaged across replicates).
+\code{aRetain} returns a list of sub-lists, with one sub-list for each replicate 
+which contains two matrices: one that summarizes the population information for 
+that replicate (one row for each year; columns = number of adults, number of 
+breeding females, number of breeding males, number of copies of the rare allele, 
+number of pairs, number of nonbreeders, number of founders remaining, number of 
+migrants alive, mean age of breeding pairs), and one that gives pertinent 
+information for all individuals in that replicate (one row for each individual; 
+columns = ID, dam, sire, origin [1=starter, 2=supplemental, 3=local, 
+4=immigrant], birth year, number of years alive in the population, number of 
+years bred, year added to population).   The latter matrix includes all 
+individuals if \code{trackall = TRUE}, or only those alive at the end of the 
+simulation if \code{trackall = FALSE}.  Run \code{aRetain.summary}, 
+\code{indiv.summary}, and \code{pedigree.summary} to generate useful output from 
+this information (averaged across replicates).
 
 }
 \references{ 
 
-Weiser, E.L., Grueber, C. E., and I. G. Jamieson.  In review.  AlleleRetain:  A program to assess management options for conserving allelic diversity in small, isolated populations.  Molecular Ecology Resources.
+Weiser, E.L., Grueber, C. E., and I. G. Jamieson. 2012. AlleleRetain: A program 
+to assess management options for conserving allelic diversity in small, isolated 
+populations. Molecular Ecology Resources 12:1161-1167.
 
 }
 
-\author{ Emily Weiser \email{emily.l.weiser@gmail.com} }
+\author{ Emily L. Weiser \email{emily.l.weiser@gmail.com} }
 
 \examples{
 
@@ -268,8 +315,10 @@ Weiser, E.L., Grueber, C. E., and I. G. Jamieson.  In review.  AlleleRetain:  A 
 ## monogamous passerine bird species with a 5-yr average lifespan.  Only 30 
 ## iterations are run so the confidence intervals will be wide.
 
+\dontrun{
+
 aR.temp <- aRetain(q0 = 0.05, sourceN = 2000, startN = 20, startAge = 
-"adult", startSR = 0.5, exactSR = FALSE, inisurv = 0.90, addN = 0, addyrs 
+"adult", startSR = 0.5, exactSSR = FALSE, inisurv = 0.90, addN = 0, addyrs 
 = c(0),  migrN = 5, migrfreq = 10, mpriority = FALSE, removeL = FALSE, K = 
 100, KAdults = FALSE, mature = 1, matingSys = "monogamy", matingLength = 
 "seasonal", retainBreeders = "male", MaxAge = 16, SenesAge = 5, adsurvivalF = 
@@ -279,8 +328,8 @@ ypFsex = "female", youngSR = 0.5, trackall = TRUE, GeneCount = "all", nyears =
 10, nrepl = 20, nreplprint = 10)
 
 aRetain.summary(aR.temp,  GeneCount = "all", alpha=0.05, dropextinct = TRUE)
-indiv.summary(aR.temp, genlength=5, alpha=0.05)
-pedigree.summary(aR.temp)
+
+}
 
 }
 

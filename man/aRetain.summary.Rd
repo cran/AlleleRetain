@@ -54,10 +54,12 @@ population }
 }
 \references{ 
 
-Weiser, E.L., Grueber, C. E., and I. G. Jamieson.  In review.  AlleleRetain:  A program to assess management options for conserving allelic diversity in small, isolated populations.  Molecular Ecology Resources.
+Weiser, E.L., Grueber, C. E., and I. G. Jamieson. 2012. AlleleRetain: A program 
+to assess management options for conserving allelic diversity in small, isolated 
+populations. Molecular Ecology Resources 12:1161-1167.
 
 }
 
-\author{ Emily Weiser \email{emily.l.weiser@gmail.com}  }
+\author{ Emily L. Weiser \email{emily.l.weiser@gmail.com}  }
 
 

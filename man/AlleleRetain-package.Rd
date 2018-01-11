@@ -11,6 +11,6 @@ with overlapping generations.
 
 \details{
 
-Typically, the user will run \code{aRetain}, then \code{aRetain.summary} to assess characteristics of the simulated population.  \code{indiv.summary} and \code{pedigree.summary} (requires package \bold{pedigree}) will provide further output.
+Typically, the user will run \code{aRetain}, then \code{aRetain.summary} to assess characteristics of the simulated population.  \code{indiv.summary}, \code{pedigree.summary} (requires package \bold{pedigree}),  \code{LRS.summary}, and  \code{agerepro.summary} will provide further output.
 
 }

@@ -10,9 +10,18 @@
 # 20 August 2012:  added "all" option to "startAge" argument
 # 2 January 2013:  Fixed pedigree.summary to work with new version of package pedigree
 # 30 June 2013: Updated user manual to fix error in pdfinfo.  No change to code or function.
-# 15 Aug 2017: Updated methods to call the citation. No change to the code or function.
+# 21 Dec 2017:
+	# Added option for harvesting individuals (arguments harvN, harvAge, harvyrs).
+	# Allowed inisurv and sex ratios to vary among starters, additional releases, and migrants.
+	# Fixed bug so that if no starters/additional individuals survive initially, the simulation still continues.
+	# Changed fecundity to draw from a binomial distribution limited to the indicated maximum, rather than an artificially truncated poisson.
+	# Added new summary functions to output information about reproductive success of individuals (LRS.summary) and age of reproductive individuals (agerepro.summary). 
+# 11 Jan 2018: minor fix to pass CRAN checks - no change to code functionality
 
 ########################################################################
+
+## Define functions used in package "pedigree" to avoid those getting flagged by CRAN checks:
+utils::globalVariables(c("calcInbreeding", "orderPed", "pedigree"))
 
 ##### Functions needed to run aRetain: ####
 
@@ -141,8 +150,9 @@ breed <- function (prs, genes, jppr, MAXypF, ypFsex, youngSR) {
 		if(ypFsex=="male") jp <- jppr[which(prlist==maleID)]	## avg num offspring/yr produced by this male
 		if(ypFsex=="female") jp <- jppr[which(prlist==femaleID)]
 		if(ypFsex=="both") jp <- mean(c(jppr[which(prlist==maleID)], jppr[which(prlist==femaleID)]))
-		nrecruit <- rpois (1,jp)   ## random Poisson variate, mean = jp --> offspring produced this year		
-		if(nrecruit > MAXypF) nrecruit <- MAXypF
+		if(jp > MAXypF) jp <- MAXypF
+		nrecruit <- rbinom(1,MAXypF,jp/MAXypF)   ## randomly draw offspring produced this year, constrained to the maximum allowed
+		if(nrecruit > MAXypF) nrecruit <- MAXypF	# This should no longer be necessary, but include in case.
 		if (nrecruit == 0) temp <- matrix(nrow=0, ncol=5)
 		else {
 			temp <- cbind (sample( c(1,2), nrecruit,
@@ -158,7 +168,7 @@ breed <- function (prs, genes, jppr, MAXypF, ypFsex, youngSR) {
 }
 
 
-addnew <- function (N, inisurv, startSR, exactSR, sourceN, q0) {
+addnew <- function (N, inisurv, SR, exactSR, sourceN, q0) {
 
 ## Add new individuals (starters, migrants) with sex and genotypes for each
 ## Input -
@@ -168,11 +178,11 @@ addnew <- function (N, inisurv, startSR, exactSR, sourceN, q0) {
 	N <- rbinom (1, size = N, prob = inisurv)
 	if(N > 0) {
 		if (exactSR) {
-			nfemale <- round(N*(1-startSR))
+			nfemale <- round(N*(1-SR))
 			nmale   <- N - nfemale
 			sex <- rep (c(1,2), c(nfemale, nmale))
 		}
-		else sex   <- sample (c(1,2), N, prob = c(1-startSR, startSR), replace = TRUE)  ## 1 = female
+		else sex   <- sample (c(1,2), N, prob = c(1-SR, SR), replace = TRUE)  ## 1 = female
 
 		if (!is.finite(sourceN)) {
 			genes <- sample (c(0,1), N*2, prob = c(1-q0, q0),
@@ -248,7 +258,12 @@ newinfo <- function (new, type, startAge, youngperF, SDypF, MAXypF, meanMLRS, sd
 
 ###########################################################################################
 
-aRetain <- function (q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile", startSR = 0.5, exactSR= FALSE, inisurv = 0.90, addN = 0, addyrs = c(0),  migrN = 0, migrfreq = 1, mpriority = FALSE, removeL = FALSE, K = 100, Klag = 0, KAdults = FALSE, reprolag = 0, mature = 1, matingSys = "monogamy", matingLength = "seasonal", meanMLRS = 1, sdMLRS = 0, reproAgeM = c(1:200), AgeOnMLRS = "age/age", nMatings = 1, retainBreeders = "male", MaxAge = 25, SenesAge = 10, adsurvivalF = 0.80, adsurvivalM = 0.80, nonbrsurv = 0.80, nonbrsurvK = 0.80, juvsurv = 0.80,  juvsurvK = 0.80, youngperF = 1.5, SDypF = 0.25, ypF1 = 1, ypF1yr = 1, MAXypF = 2, MAXypFK = 2, ypFsex = "female", youngSR = 0.5, trackall = TRUE, GeneCount = "adult", nyears = 50, nrepl = 100, nreplprint = 10, printplots = FALSE)
+aRetain <- function (q0 = 0.05, sourceN = Inf, 
+startN = 20, startAge = "juvenile", startSR = 0.5, exactSSR= FALSE, inisurv = c(1,1,1), 
+addN = 0, addyrs = c(0),  addSR = 0.5, exactASR = FALSE,
+migrN = 0, migrfreq = 1, migrSR = 0.5, exactMSR = FALSE, mpriority = FALSE, removeL = FALSE, 
+harvN = 0, harvAge = "all", harvyrs = 0,
+K = 100, Klag = 0, KAdults = FALSE, reprolag = 0, mature = 1, matingSys = "monogamy", matingLength = "seasonal", meanMLRS = 1, sdMLRS = 0, reproAgeM = c(1:200), AgeOnMLRS = "age/age", nMatings = 1, retainBreeders = "male", MaxAge = 25, SenesAge = 10, adsurvivalF = 0.80, adsurvivalM = 0.80, nonbrsurv = 0.80, nonbrsurvK = 0.80, juvsurv = 0.80,  juvsurvK = 0.80, youngperF = 1.5, SDypF = 0.25, ypF1 = 1, ypF1yr = 1, MAXypF = 2, MAXypFK = 2, ypFsex = "female", youngSR = 0.5, trackall = TRUE, GeneCount = "adult", nyears = 50, nrepl = 100, nreplprint = 10, printplots = FALSE)
 {
 
 ## Simulate frequency of rare neutral allele in a two-allele system 
@@ -260,16 +275,23 @@ aRetain <- function (q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile
 ##  q0	Frequency of rare allele in the source population (range 0-1); defaults to 0.05.
 ##  sourceN	Size of source population; must be > startN; defaults to Inf (infinite).
 ##  startN	Number of starters (or size of bottleneck); not all will become genetic founders.  Minimum 2.
-##  startAge	Age class ("juvenile", "young adult", or "adult") of starters, supplemental.  If "juvenile", all individuals added are assigned age 0; if "young adult", all are assigned age at maturity; if "adult", ages are selected randomly based on the proportion of individuals in the source population expected to be of each age (based on the survival rates and senescence specified below).
-##  startSR	Sex ratio (proportion male) of starters, supplementals, and migrants; defaults to 0.5 (must be between 0 and 1).
-##  exactSR	Whether startSR gives the exact sex ratio of individuals released (TRUE) sexes are assigned randomly based on the probability given by startSR (FALSE); defaults to FALSE.
-##  inisurv	Initial survival rate, as a proportion (range 0-1), of starters, supplementals, and migrants immediately post-release.  Annual mortality applies after this value is used.  Defaults to 0.90.
-##  addN	List of numbers of individuals to release in years soon after population establishment ("supplementals"); defaults to 0.
-##  addyrs	List of years in which to release supplementals.  Each year corresponds to the number of individuals in the same position in the addN list.  Defaults to 0.
+##  startAge	Age class ("juvenile", "young adult", "adult", or "all") of starters and supplemental individuals.  If "juvenile", all individuals added are assigned age 0; if "young adult", all are assigned age at maturity; if "adult", ages are selected randomly based on the proportion of individuals in the source population expected to be of each age (based on the survival rates and senescence specified below).
+##  startSR	Sex ratio (proportion male) of starters; defaults to 0.5 (must be between 0 and 1).
+##  exactSSR	Whether startSR gives the exact sex ratio of starters (TRUE) or sexes are assigned randomly based on the probability given by startSR (FALSE); defaults to FALSE.
+##  inisurv	Initial survival rate, as a proportion (range 0-1), of individuals released.  Given as a vector, where the first value is for starters, the second is for additional releases, and third is for migrants.  Annual mortality applies after this value is used.  Defaults to 1 for all three groups.
+##  addN	Vector of numbers of individuals to release in years soon after population establishment ("supplementals"); defaults to 0.
+##  addyrs	Vector of years in which to release supplementals.  Each year corresponds to the number of individuals in the same position in the addN vector.  Defaults to 0.
+##	addSR	Sex ratio (proportion male) of supplementals; defaults to 0.5 (must be between 0 and 1).  This can be either a single value, or a vector, with each element in the vector corresponding to each instance of supplementation (must be the same length as addN).
+## 	exactASR	Whether addSR gives the exact sex ratio of individuals released (TRUE) or sexes are assigned randomly based on the probability given by addSR (FALSE); defaults to FALSE.  This can be either a single value, or a vector, with each element in the vector corresponding to each instance of supplementation (must be the same length as addN).
 ##  migrN	Number of migrants to add (must be a whole number); defaults to 0.
 ##  migrfreq	Interval (number of years) at which to add migrN migrants; must be between 1 and nyears, below; defaults to 1.
+##	migrSR	Sex ratio (proportion male) of supplementals; defaults to 0.5 (must be between 0 and 1).
+## 	exactMSR	Whether addSR gives the exact sex ratio of individuals released (TRUE) or sexes are assigned randomly based on the probability given by migrSR (FALSE); defaults to FALSE.
 ##  mpriority	TRUE or FALSE:  whether migrants are given priority over locally produced offspring to recruit into any available breeding vacancies; defaults to FALSE.
 ##  removeL	TRUE or FALSE: whether to remove the corresponding number of locally produced adults to make room for migrants in the population; only necessary if retainBreeders = "both"/"female"/"male"; occurs even when population is below K.  Defaults to FALSE.
+##  harvN	Number to be removed in each harvest year
+##	harvAge	Age of individuals to be harvested (as for 'startAge'). If not enough individuals of this age are available, the harvest quota (harvN) will not be filled.
+##  harvyrs	Vector of years in which harvest occurs
 ##  K	Carrying capacity (population ceiling); defaults to 100.
 ##  Klag	Number of years for which population is held at or below initial size (breeding still occurs); indicates a prolonged bottleneck.  Defaults to 0.
 ##  KAdults    	TRUE (K = number of adults) or FALSE (K = total individuals; subadults, nonbreeders, helpers are also subjected to the limit of K).  Defaults to FALSE.
@@ -279,7 +301,7 @@ aRetain <- function (q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile
 ##  matingLength	"seasonal" or "lifelong".  Determines whether individuals retain the same mate from year to year or divorce.  Note that if set to "lifelong" with polygyny/polygynandry, males will not obtain any new mates until ALL of their previous mates have died (probably not realistic in most cases).  Defaults to "seasonal".
 ##  meanMLRS	Mean lifetime reproductive success (LRS), in terms of number of matings that produce young (NOT number of offspring) a male gets over his lifetime.  This is a population average for all males, including those that never reproduce, and may be a fraction.  Each male will be assigned an individual average from a gamma distribution with this mean and sdMLRS (the shape of the gamma function = (meanMLRS^2)/(sdMLRS^2); scale = (sdMLRS^2)/meanMLRS; see help for R function "rgamma" for more information).  The gamma distribution was chosen because of its flexibility in shape appropriate to polygynous mating systems (from strongly right-skewed to nearly symmetrical).  The SD:mean ratio is more important than the magnitude of the mean.  This individual mean indicates the male's "quality" and will be used to assess his chance of mating, relative to other males present, each year (does not translate directly into actual LRS experienced by that male).  Not used if matingSys = "monogamy".  Defaults to 1.
 ##  sdMLRS	Among-male standard deviation in LRS.  Used with meanMLRS as described above.  If sdMLRS = 0, all males will have the same chance of breeding each year.  Not used if matingSys = "monogamy".  Defaults to 0.
-##  reproAgeM	List of ages at which males are able to mate successfully.  If males may mate at all ages, use 0:maximum possible lifespan.  This maximum cannot be set to Inf (unlike MaxAge) but you can use a really high number if unsure of lifespan.  Defaults to c(1:200).
+##  reproAgeM	Vector of ages at which males are able to mate successfully.  If males may mate at all ages, use 0:maximum possible lifespan.  This maximum cannot be set to Inf (unlike MaxAge) but you can use a really high number if unsure of lifespan.  Defaults to c(1:200).
 ##  AgeOnMLRS	Expression describing the proportion of LRS achieved by a male at a particular age (for ages contained within reproAgeM).  The user specifies the form of this expression; it must include "age" (the individual's current age) and no other undefined variables.  Example:  "-5.4 + 1.5*age - 0.08*age^2" describes a parabolic relationship between age and mating success (proportion of LRS achieved at each age).  If there is no effect of age, use the default value of "age/age" (equals 1 so all ages will be assigned the same average, given by meanMLRS).  If a given age is not included in reproAgeM, reproductive output at that age will be set to 0 regardless of the value calculated by this equation.
 ##  nMatings	Average number of matings per female each year.  Only used when matingSys = "polygynandry".  Each female mates and breeds the corresponding number of times each year.  Repeat matings with the same male are not prohibited and may occur by chance.  Where there are multiple matings by females, the value entered for youngperF (below) is interpreted as the average number of offspring produced from each of these matings.  Defaults to 1; must be a whole number.
 ##  retainBreeders	Should established breeders retain their breeding status from year to year, and prevent young individuals from recruiting if the population is at K?  Specify which sex should be retained: "none", "both", "male", or "female".  Only used when matingSys = "monogamy."  When "none", all new recruits are added to the breeding population; individuals are randomly removed from that pool to truncate the population at K (so new recruits may randomly replace established breeders).  When adults will likely survive and prevent new individuals from recruiting, e.g. with territorial species, set this at one of the other values as appropriate for your species.  When pairing off widowed or divorced individuals, those of the retained sex(es) that bred previously will be guaranteed a new mate (if available); non-retained adults will compete with new recruits to mate with available adults.  If the population is at K, new recruits will only fill vacancies left by adults that died (they will not replace any surviving adults, including females when retainBreeders = "male" and vice versa; i.e. "both" functions the same as "male" and "female" in this part of the model).  Defaults to "male".
@@ -291,7 +313,7 @@ aRetain <- function (q0 = 0.05, sourceN = Inf, startN = 20, startAge = "juvenile
 ##  nonbrsurvK	Annual survival rate of nonbreeders when population is at K (used instead of nonbrsurv).  If given, subadult survival probability in each year depends on density of the population at the beginning of that year, according to the Beverton-Holt function for density dependence in survival (as in Morris & Doak 2002, Quantitative Conservation Biology):  S(E(t)) = S(0)/(1 + beta * E(t)), where S(E(t)) is survival rate at population density E in year t, S(0) is survival when density is near 0, beta is the decline in survival as density increases, and E(t) is population density at time t.  "Density" is defined in our model as the proportion of K that has been filled, as there is no spatial information in the model.  The model solves for beta according to the user-specified values for nonbrsurv (S(0)) and nonbrsurvK (S at carrying capacity, where E = 1), then uses beta and S(0) to calculate density-dependent survival probability in each year.
 ##  juvsurv	First year survival (from the stage described by youngperF, below, to the beginning of the next breeding season) when population is below K.
 ##  juvsurvK	First year survival when population is at K (used instead of juvsurv).  Can be equal to juvsurv.  Otherwise, juvenile survival is density-dependent as for nonbrsurvK.
-##  youngperF	Average number of offspring produced per mating each year (averaged over all pairs in population).  For a polyandrous female, this is the average number of offspring produced each time she mates with a male (each year): youngperF * nMatings = total average offspring per year.  youngperF can be calculated for any reproductive stage (eggs, chicks, independent juveniles) as long as juvsurv indicates the proportion of individuals that survive from this stage to the beginning of the following breeding season.  Given as offspring per pair, e.g. 1.5 or 0.75.
+##  youngperF	Average number of offspring produced per mating each year (averaged over all pairs in population).  For a polygynandrous female, this is the average number of offspring produced each time she mates with a male (each year): youngperF * nMatings = total average offspring per year.  youngperF can be calculated for any reproductive stage (eggs, chicks, independent juveniles) as long as juvsurv indicates the proportion of individuals that survive from this stage to the beginning of the following breeding season.  Given as offspring per pair, e.g. 1.5 or 0.75.
 ##  SDypF	Among-individual standard deviation of youngperF, e.g. 0.50 or 2.
 ##  ypF1    Where younger breeders have reduced reproductive rates, this can be used to define the reproductive success for first reproductive stage (length of that stage is determined by ypF1yr, below).  Given as a proportion of youngperF.  E.g. if youngperF = 2 and ypF1 = 0.5, mean reproductive success during the first stage will be 1 offspring per female.  Will be < 1 if inexperienced females experience lower reproductive success than older females; but can be > 1 to indicate higher reproductive success for younger females than for older females, e.g. with senescence (youngperF always applies after the age indicated by ypF1yr, below).
 ##  ypF1yr   	Age after which ypF1 changes to youngperF (e.g. 1 if ypF1 applies to one-year-olds only, or 5 if it applies for the first 5 years and then increases to youngperF from age 6 onward).
@@ -312,11 +334,14 @@ if (q0<=0 | q0>=1) stop ('Initial gene frequency must be between 0 and 1')
 if (startN > sourceN) stop ("'startN' cannot exceed 'sourceN'")
 if (startN < 2) stop ("'startN' must be at least 2")
 if (startAge != "juvenile" & startAge != "adult" & startAge != "young adult" & startAge != "all") stop ("'startAge' must be 'juvenile', 'young adult', 'adult', or 'all'")
-if (startSR<=0 | startSR>=1 | youngSR<=0 | youngSR>=1) stop ("'startSR' and 'youngSR' must be between 0 and 1")
-if (inisurv <=0 | inisurv > 1 | nonbrsurv <=0 | nonbrsurv > 1 | nonbrsurvK <=0 | nonbrsurvK > 1 | juvsurv <=0 | juvsurvK > 1 | adsurvivalF <=0 | adsurvivalF > 1) stop ("Survival rates must be between 0 and 1")
-for(i in 1:length(addN)) { if (!is.wholenumber(addN[i])) stop ("'addN' must be a list of whole numbers")}
-for(i in 1:length(addyrs)){if (!is.wholenumber(addyrs[i])) stop ("'addyrs' must be a list of whole numbers")}
+if (startSR<=0 | startSR>=1 | addSR[1]<=0 | addSR[1]>=1 | migrSR<=0 | migrSR>=1 | youngSR<=0 | youngSR>=1) stop ("Sex ratios must be between 0 and 1")
+if(length(inisurv)!=3) stop("'inisurv' must be a vector of three values, corresponding to starters, additional releases, and immigrants.")
+if (inisurv[1] <=0 | inisurv[1] > 1 | nonbrsurv <=0 | nonbrsurv > 1 | nonbrsurvK <=0 | nonbrsurvK > 1 | juvsurv <=0 | juvsurvK > 1 | adsurvivalF <=0 | adsurvivalF > 1) stop ("Survival rates must be between 0 and 1")
+for(i in 1:length(addN)) { if (!is.wholenumber(addN[i])) stop ("'addN' must be a vector of whole numbers")}
+for(i in 1:length(addyrs)){if (!is.wholenumber(addyrs[i])) stop ("'addyrs' must be a vector of whole numbers")}
 if(length(addN) != length(addyrs)) stop ("'addN' and 'addyrs' must be vectors of the same length")
+if(length(addSR) > 1) if(length(addSR) != length(addN)) stop("If 'addSR' is a vector, it must be the same length as 'addN'")
+if(length(exactASR) > 1) if(length(exactASR) != length(addSR)) stop("If 'exactASR' is a vector, it must be the same length as 'addSR'")
 if (!is.wholenumber(migrN)) stop ("'migrN' must be a whole number")
 if (!is.wholenumber(migrfreq)) stop ("'migrfreq' must be a whole number")
 if (migrN > 0) if (migrfreq > nyears) stop ("'migrfreq' > 'nyears' so no migration will occur during this simulation; 'migrfreq' must be < 'nyears' or equal to 0.")
@@ -347,7 +372,7 @@ run.one.repl <- function (r) {
 	census <- matrix(nrow=nyears, ncol=9)
 	indivdata <- matrix(nrow=0, ncol=7)
 	numpresent <- 0
-	population <- matrix(nrow=0, ncol=13)
+	population <- matrix(nrow=0, ncol=14)
 	nonbreeders <- matrix(nrow = 0, ncol=13)
     migrants <- matrix(nrow = 0, ncol=13)
 	startersinfo <- matrix(nrow=0, ncol=13)
@@ -358,16 +383,16 @@ run.one.repl <- function (r) {
 	indivID <- 0
 	pairs <- matrix(nrow=0, ncol=2)
 	singles <- numeric(0)
+	reprostats <- matrix(nrow=0, ncol=5)
 
 	## ADD STARTERS TO ESTABLISH POPULATION
     ## Individuals are added as if at the end of a breeding season (autumn).  They will not breed this year, and will be subject to annual mortality (on top of initial mortality) before breeding next year.
-	starters <- addnew(startN, inisurv, startSR, exactSR, sourceN, q0)
+	starters <- addnew(startN, inisurv[1], startSR, exactSSR, sourceN, q0)
 	startersinfo <- matrix(cbind(newinfo(starters, type = 1, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = 1, y=1, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv=nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(0, nrow(starters))), ncol=13)
 	indivID <- startersinfo[,1]
-
 	
 	## LOOP OVER YEARS
-	for (y in 1:nyears) {	
+	for (y in 1:nyears) {
 		if(nrow(startersinfo) > 0){
 			if(startAge == "juvenile") juveniles <- matrix(startersinfo, ncol=13) # put initial starters into juveniles matrix
 			else nonbreeders <- matrix(startersinfo, ncol=13)
@@ -397,6 +422,16 @@ run.one.repl <- function (r) {
 				}			
 				if(length(unique(c(pairs, singles))) > (K-1))	Mjpp <- MAXypFK
 				else Mjpp <- MAXypF
+				
+				# If this is last year of simulation, set up matrix to record number of matings and number of offspring for each individual
+				if(y==nyears){
+					live <- matrix(population[which(population[,1] %in% c(pairs,singles,nonbreeders[,1])),], ncol=ncol(population))
+					if(nrow(live > 0)){
+						reprostats <- matrix(cbind(live[,1], live[,4], (y - live[,8]), rep(0, nrow(live)), rep(0, nrow(live))), ncol=5)
+						colnames(reprostats) <- c('ID','sex','age','NMates','NOffspring')	# note the last two are just for this year
+						for(m in 1:nrow(reprostats)) reprostats[m,4] <- reprostats[m,4] + length(prlist[which(prlist==reprostats[m,1])])	# tally pairs that were formed at end of last year
+					}
+				}
 				for(i in 1:nMatings){
 					new <- breed (pairs, parentgenes, parentypp, Mjpp, ypFsex, youngSR)  ## offspring 	
 					newinf <- matrix(cbind(newinfo(matrix(new[,1:3], ncol=3), type=3, startAge = "juvenile", youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID=(max(indivID)+1), y, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(y, nrow(new))), ncol=13)
@@ -407,7 +442,7 @@ run.one.repl <- function (r) {
 					if (i < nMatings) {	# still more breeding left for this season; re-form all pairs
 						singles <- sort(unique(c(singles, pairs)))	# split up all pairs if seasonal monogamy
 						pairs <- matrix(nrow=0, ncol=2)	
-						popalive <- matrix(subset(population, population[,1] %in% singles), ncol=13)
+						popalive <- matrix(subset(population, population[,1] %in% singles), ncol=14)
 						males <- subset(popalive, popalive[,4]==2)
 						males <- subset(males, males[,8] %in% c(y - reproAgeM))	# males that are of reproductive age
 						females <- subset(popalive, popalive[,4]==1)
@@ -427,18 +462,47 @@ run.one.repl <- function (r) {
 							pairs <- matrix(newpairs$mated, ncol=2)
 							singles <- singles[!(singles %in% pairs)]
 						}
+						
+						# Tally the number of mates for each individual (cumulative over all re-pairing events in this loop, AND over all years), for both sexes.  Tallied in new column 14 of population object.
+						prlist <- c(pairs)
+						for(m in 1:nrow(population)) population[m,14] <- population[m,14] + length(prlist[which(prlist==population[m,1])])
+						# If this is final year of simulation, tally number of mates for each individual
+						if(y==nyears) if(nrow(matrix(population[which(population[,1] %in% c(pairs,singles)),], ncol=ncol(population))) >0) if(nrow(reprostats) > 0){
+							for(m in 1:nrow(reprostats)) reprostats[m,4] <- reprostats[m,4] + length(prlist[which(prlist==reprostats[m,1])])
+						}
+						
 					}
 				}	
 			}
 		}
-
+		# Tally offspring per individual, if last year of simulation:
+		if(y==nyears) if(nrow(matrix(population[which(population[,1] %in% c(pairs,singles)),],ncol=ncol(population))) >0)if(nrow(reprostats) > 0){
+			for(m in 1:nrow(reprostats)) reprostats[m,5] <- length(juveniles[,2][which(juveniles[,2]==reprostats[m,1])]) + length(juveniles[,3][which(juveniles[,3]==reprostats[m,1])])
+		}
+		# Add juveniles to the age structure output
+		if(y==nyears) if(nrow(matrix(population[which(population[,1] %in% c(pairs,singles)),], ncol=ncol(population))) >0) reprostats <- rbind(reprostats, matrix(cbind(matrix(juveniles[,c(1,4)], ncol=2), rep(0, nrow(juveniles)), rep(0, nrow(juveniles)),rep(0, nrow(juveniles))), ncol=5))
+		# Add nonbreeders to the age structure output
+		if(y==nyears) if(nrow(matrix(population[which(population[,1] %in% c(pairs,singles)),], ncol=ncol(population))) >0) reprostats <- rbind(reprostats, matrix(cbind(matrix(nonbreeders[,c(1,4)],ncol=2), y-nonbreeders[,8], rep(0, nrow(nonbreeders)),rep(0, nrow(nonbreeders))), ncol=5))
+		
 		## ADD ANY ADDITIONAL FOUNDERS (will not breed until next year)
 		if (sum(addN) > 0) { if (y %in% addyrs)	{
 			addNy <- addN[which(addyrs==y)]
-			addstarters <- addnew(addNy, inisurv, startSR, exactSR, sourceN, q0)
+			if(length(addSR) > 1){
+				addSRy <- addSR[which(addyrs==y)]
+				eASRy <- exactASR[which(addyrs==y)]
+			}
+			else{
+				addSRy <- addSR
+				eASRy <- exactASR
+			}
+			
+			addstarters <- addnew(addNy, inisurv[2], addSRy, eASRy, sourceN, q0)
+			if(length(indivID > 0)) mID <- max(indivID)
+			else mID <- 0
 			addinfo <- matrix(nrow=0, ncol=13)
-			addinfo <- matrix(cbind(newinfo(addstarters, type = 2, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = (max(indivID) + 1), y, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(y, nrow(addstarters))), ncol=13)
-			indivID <- c(indivID, addinfo[,1])
+			addinfo <- matrix(cbind(newinfo(addstarters, type = 2, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = (mID + 1), y, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(y, nrow(addstarters))), ncol=13)
+			if(length(indivID > 0)) indivID <- c(indivID, addinfo[,1])
+			else indivID <- addinfo[,1]
 			if (startAge == "juvenile") juveniles <- matrix(rbind(juveniles, addinfo), ncol=13)
 			else nonbreeders <- matrix(rbind(nonbreeders, addinfo), ncol=13)	# adults go into nonbreeders matrix until they recruit to breed (or die)
 		}}
@@ -446,7 +510,7 @@ run.one.repl <- function (r) {
 		## IF y IS MIGRATION YEAR, ADD MIGRANTS.
 		if (migrN > 0) if(migrfreq > 0) {
 		if (is.wholenumber(y/migrfreq)){	# migration occurs this year
-			migrants <- addnew(migrN, inisurv, startSR, exactSR, sourceN, q0)
+			migrants <- addnew(migrN, inisurv[3], migrSR, exactMSR, sourceN, q0)
 			migrinfo <- matrix(cbind(newinfo(migrants, type = 4, startAge, youngperF, SDypF, MAXypF, meanMLRS, sdMLRS, firstID = (max(indivID) + 1), y, adsurvival = mean(adsurvivalF, adsurvivalM), nonbrsurv, mature, SenesAge, MaxAge, matingSys), rep(y, nrow(migrants))), ncol=13)
 			indivID <- c(indivID, migrinfo[,1])
 			if (startAge == "juvenile") juveniles <- matrix(rbind(juveniles, migrinfo), ncol=13)
@@ -454,7 +518,7 @@ run.one.repl <- function (r) {
 			if (removeL == TRUE) { # remove local adults to make room for migrants
 				adultslive <- c(pairs, singles)
 				adultslive <- adultslive[!(adultslive == 0)]
-				popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=13)
+				popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=14)
 				poplocals <- subset(popalive, popalive[,7]==3)
 				if(nrow(poplocals) > migrN) Lremove <- sample(poplocals[,1], size=migrN)	# locals to remove			
 				else Lremove <- poplocals[,1]	# remove ALL locals
@@ -462,12 +526,49 @@ run.one.repl <- function (r) {
 				singles <- singles[!(singles %in% Lremove)]
 			}
 		}}
+	
+		## HARVEST.  Only locally produced individuals will be removed.
+		if(harvN > 0) if(y %in% harvyrs){	# harvest occurs this year
+			if(harvAge=="adult"){
+				adultslive <- c(pairs, singles)
+				adultslive <- adultslive[!(adultslive == 0)]
+				popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=14)
+				poplocals <- subset(popalive, popalive[,7]==3)
+				if(nrow(poplocals) > harvN) Lremove <- sample(poplocals[,1], size=harvN)	# locals to remove			
+				else Lremove <- poplocals[,1]	# remove ALL locals
+				pairs[pairs %in% Lremove] <- 0	# set flag for later removal
+				singles <- singles[!(singles %in% Lremove)]
+			}
+			if(harvAge=="juvenile"){
+				juvlocal <- subset(juveniles, juveniles[,7]==3)
+				if(nrow(juvlocal) > harvN) Lremove <- sample(juvlocal[,1], size=harvN)	# locals to remove			
+				else Lremove <- juvlocal[,1]	# remove ALL locals
+				juveniles <- juveniles[which(!(juveniles[,1] %in% Lremove)),]	# these will NOT be recorded in population.
+			}
+		
+			if(harvAge=="all"){	# does NOT include nonbreeders for simplicity's sake.
+				adultslive <- c(pairs, singles)
+				adultslive <- adultslive[!(adultslive == 0)]
+				popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=14)
+				poplocals <- subset(popalive, popalive[,7]==3)
+				juvlocal <- subset(juveniles, juveniles[,7]==3)
+				allIDs <- c(poplocals[,1], juvlocal[,1])
+				if(length(allIDs) > harvN) Lremove <- sample(allIDs, size=harvN)
+				else Lremove <- allIDs	# remove ALL adults and juveniles
+				pairs[pairs %in% Lremove] <- 0	# set flag for later removal
+				singles <- singles[!(singles %in% Lremove)]
+				juveniles <- juveniles[which(!(juveniles[,1] %in% Lremove)),]	# these will NOT be recorded in population.
+			}
+		
+		
+		}
+		if(class(juveniles)!="matrix") juveniles <- as.matrix(rbind(juveniles), ncol=13)
 		
 		## SURVIVAL
-		# Adults.  Some may have been removed by removeL above, but that will not affect the probability of other individuals surviving.	
+		# Adults.  Some may have been removed by removeL or harvest above, but that will not affect the probability of other individuals surviving.	
 		adultslive <- unique(c(pairs, singles))
 		adultslive <- adultslive[!(adultslive == 0)]
-		popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=13)
+		popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=14)
 		if (nrow(popalive) > 0) {
 			fem <- subset(popalive, popalive[,4]==1)		# females
 			mal <- subset(popalive, popalive[,4]==2)		# males
@@ -496,7 +597,7 @@ run.one.repl <- function (r) {
 			singles <- singles[singles %in% liveID]
 		}
 		if(sum(pairs)==0) pairs <- matrix(nrow=0, ncol=2)	
-		
+
 		# Subadults/nonbreeders.  Those that die are put into "population" to be recorded as dead individuals.
 		# Note that nonbreeders were previously referred to as "subadults" so some of the nomenclature below will reflect that (SA/subad = subadult)
 		if (nrow(nonbreeders) > 0) { 
@@ -512,7 +613,7 @@ run.one.repl <- function (r) {
 			subadindex <- subadindex[subadindex %in% alive]
 			nonbrdead <- matrix(nonbreeders[-subadindex,], ncol=13)
 			nonbreeders <- matrix(nonbreeders[subadindex,], ncol=13)
-			population <- matrix(rbind(population, nonbrdead), ncol=13)
+			population <- rbind(population, cbind(nonbrdead, rep(0, nrow(nonbrdead))))	
 		}
 
 		# Juveniles.  Those that die are put into "population" to be recorded as dead individuals.
@@ -530,7 +631,7 @@ run.one.repl <- function (r) {
 			juvindex <- juvindex[juvindex %in% alive]
 			juvdead <- matrix(juveniles[-juvindex,], ncol=13)
 			juveniles <- matrix(juveniles[juvindex,], ncol=13)
-			population <- matrix(rbind(population, juvdead), ncol=13)
+			population <- matrix(rbind(population, cbind(juvdead, rep(0,nrow(juvdead)))), ncol=14)
 		}
 		nonbreeders <- matrix(rbind(nonbreeders, juveniles), ncol=13) 
 		juveniles <- matrix(nrow=0, ncol=13)
@@ -569,7 +670,7 @@ run.one.repl <- function (r) {
 							}
 							if (nrow(SAbreed) > 0) {
 								newID2 <- SAbreed[,1]
-								population <- matrix(rbind(population, SAbreed), ncol=13)
+								population <- matrix(rbind(population, cbind(SAbreed, rep(0,nrow(SAbreed)))), ncol=14)
 								SAbreed <- matrix(nrow=0, ncol=13)
 							}
 						}
@@ -590,7 +691,7 @@ run.one.repl <- function (r) {
 				else SAmature <- matrix(nrow=0,ncol=13)
 				if (nrow(SAmature) > 0){
 					newID2 <- c(newID2, SAmature[,1])
-					population <- matrix(rbind(population, SAmature), ncol=13)	# add to population
+					population <- matrix(rbind(population, cbind(SAmature, rep(0,nrow(SAmature)))), ncol=14) # add to population
 					dimnames(population) <- NULL
 					nonbreeders <- matrix(rbind(staySA, nonbreeders3), ncol=13)
 					SAmature <- matrix(nrow=0, ncol=13)
@@ -612,8 +713,8 @@ run.one.repl <- function (r) {
 		if(nrow(population) > 0) {  if(length(ALL) > k) {
 			adultslive <- c(pairs, singles)
 			adultslive <- adultslive[!(adultslive == 0)]
-			popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=13)	# only live individuals can be selected	
-			mig <- matrix(subset(popalive, popalive[,7]==4), ncol=13)
+			popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=14)	# only live individuals can be selected	
+			mig <- matrix(subset(popalive, popalive[,7]==4), ncol=14)
 			miga <- mig[,1]	
 			if(KAdults) {	## only adults are limited to K	
 				# Truncation with KAdults will be necessary only when retainBreeders == none; so established breeders get no priority here.  Migrants get first priority; then all other adults compete to remain here.
@@ -718,7 +819,7 @@ run.one.repl <- function (r) {
 		# population truncation to K has already occurred, so the number of pairs that can form is not limited.
 		adultslive <- c(pairs, singles)
 		adultslive <- adultslive[!(adultslive == 0)]
-		popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=13)
+		popalive <- matrix(population[which(population[,1] %in% adultslive),], ncol=14)
 		if (nrow(popalive) > 0) {
 			if (matingSys != "monogamy"){
 				singles  <- unique(c(singles, getsingles(pairs)))  # add newly widowed to 'singles'
@@ -729,7 +830,7 @@ run.one.repl <- function (r) {
 					pairs <- matrix(nrow=0, ncol=2)
 				}		# if mating is lifelong, previous pairs remain and only single individuals will be paired off
 				if(length(singles) > 1) {	# if not, cannot make new pairs
-					livesingles <- matrix(subset(population, population[,1] %in% singles), ncol=13)
+					livesingles <- matrix(subset(population, population[,1] %in% singles), ncol=14)
 					males <- subset(livesingles, livesingles[,4]==2)				
 					reproyrs <- (y+1) - reproAgeM	# birth years of males that will be of reproductive age next year		
 					males <- subset(males, males[,8] %in% reproyrs)	# males that will be of reproductive age	
@@ -751,6 +852,11 @@ run.one.repl <- function (r) {
 							pairs <- rbind(pairs, newpairs$mated)
 							singles <- singles[!(singles %in% pairs)]
 						}
+						
+						# Tally the number of mates for each individual (cumulative over all years), for both sexes.  Tallied in new column 14 of population object.
+						prlist <- c(pairs)
+						for(m in 1:nrow(population)) population[m,14] <- population[m,14] + length(prlist[which(prlist==population[m,1])])
+
 					}	
 				}
 			}	
@@ -762,14 +868,14 @@ run.one.repl <- function (r) {
 						singles <- sort(c(singles, pairs))	# all pairs are split up
 						pairs <- matrix(nrow=0, ncol=2)
 					}	# otherwise pairs remain as they were, and only single/widowed birds are paired up now.	
-					livesingles <- matrix(subset(population, population[,1] %in% singles), ncol=13)
+					livesingles <- matrix(subset(population, population[,1] %in% singles), ncol=14)
 					newpairs <- pairoff(livesingles[,1], livesingles[,4], Inf)	# new pairs from all adults				
 					pairs <- rbind(pairs, newpairs$mated)
 					singles <- newpairs$unmated
 				}
 				else {			
-					fwid <- matrix(nrow=0, ncol=13)
-					mwid <- matrix(nrow=0, ncol=13)
+					fwid <- matrix(nrow=0, ncol=14)
+					mwid <- matrix(nrow=0, ncol=14)
 					fwidID <- numeric(0)
 					mwidID <- numeric(0)
 					mprID <- numeric(0)
@@ -778,7 +884,7 @@ run.one.repl <- function (r) {
 					fsinID <- numeric(0)
 					pd <- c(oldpairs)			
 					pd <- sort(pd[pd %in% pairs])	# do not include previously paired adults that have died			
-					prs <- matrix(subset(population, population[,1] %in% pd), ncol=13)	# Previously paired adults that are still alive	
+					prs <- matrix(subset(population, population[,1] %in% pd), ncol=14)	# Previously paired adults that are still alive	
 					mpr <- subset(prs, prs[,4]==2)		# males previously paired
 					fpr <- subset(prs, prs[,4]==1)		# females previously paired
 					if(nrow(mpr) > 0) mprID <- c(mpr[,1])	# male paired ID
@@ -787,14 +893,14 @@ run.one.repl <- function (r) {
 					pairs <- dropsingles(pairs)		# drop widowed birds
 					newpairs <- matrix(pairs[!(pairs %in% oldpairs)], ncol=2)  # not including indiv paired last year
 					if (length(widows) > 0) {
-						wid <- matrix(subset(population, population[,1] %in% widows), ncol=13)
-						mwid <- matrix(subset(wid, wid[,4]==2), ncol=13)		# Select male widow
-						fwid <- matrix(subset(wid,wid[,4]==1), ncol=13)		# Select female widows
+						wid <- matrix(subset(population, population[,1] %in% widows), ncol=14)
+						mwid <- matrix(subset(wid, wid[,4]==2), ncol=14)		# Select male widow
+						fwid <- matrix(subset(wid,wid[,4]==1), ncol=14)		# Select female widows
 						if(nrow(mwid)>0) mwidID <- c(mwid[,1])	# male widow ID
 						if(nrow(fwid)>0) fwidID <- c(fwid[,1])	# female widow ID
 						}
 					newsingles <- sort(singles[!(singles %in% oldpairs)])	# does not included paired indiv from last year that are now single
-					sing <- matrix(subset(population, population[,1] %in% newsingles), ncol=13)	
+					sing <- matrix(subset(population, population[,1] %in% newsingles), ncol=14)	
 					fsin <- subset(sing,sing[,4]==1)				# single females
 					msin <- subset(sing,sing[,4]==2)				# single males
 					if(nrow(fsin) > 0) fsinID <- c(fsin[,1])	# single female ID
@@ -803,22 +909,22 @@ run.one.repl <- function (r) {
 						if (matingLength == "lifelong") {
 							toprm <- c(mwidID, fsinID)	# widowed males and single females to pair off
 							toprf <- c(fwidID, msinID)	# widowed females and single males to pair off
-							toprmpop <- matrix(subset(population, population[,1] %in% toprm), ncol=13)
-							toprfpop <- matrix(subset(population, population[,1] %in% toprf), ncol=13)
+							toprmpop <- matrix(subset(population, population[,1] %in% toprm), ncol=14)
+							toprfpop <- matrix(subset(population, population[,1] %in% toprf), ncol=14)
 							mp <- pairoff(toprmpop[,1], toprmpop[,4], Inf)	# pair off single females with established males
 							fp <- pairoff(toprfpop[,1], toprfpop[,4], Inf)	# pair off single males with established females
 							singles <- c(mp$unmated, fp$unmated)
-							singpop <- matrix(subset(population, population[,1] %in% singles), ncol=13)
+							singpop <- matrix(subset(population, population[,1] %in% singles), ncol=14)
 							mf <- pairoff(singpop[,1], singpop[,4], Inf)  # pair off any remaining singles
 							singles <- mf$unmated
 							pairs <- matrix(rbind(pairs, newpairs, mp$mated, fp$mated, mf$mated), ncol=2)
 						}
 						if (matingLength == "seasonal") {
-							pdpop <- matrix(subset(population, population[,1] %in% pd), ncol=13)
+							pdpop <- matrix(subset(population, population[,1] %in% pd), ncol=14)
 							pp <- pairoff(pdpop[,1], pdpop[,4], Inf)	# pairoff previous pairs first
 							pairs <- pp$mated
 							ps <- pp$unmated	# previously paired individuals left single
-							pspop <- matrix(subset(population, population[,1] %in% ps), ncol=13)
+							pspop <- matrix(subset(population, population[,1] %in% ps), ncol=14)
 							psf <- subset(pspop, pspop[,4]==1)
 							psfID <- psf[,1]		# previously paired females left single
 							psm <- subset(pspop, pspop[,4]==2)
@@ -826,13 +932,13 @@ run.one.repl <- function (r) {
 							if(nrow(pairs) < Inf) {
 								if (length(psfID) > 0) {	# pair off previously paired females
 									topr <- c(psfID, msinID)
-									toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=13)
+									toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=14)
 									pf <- pairoff(toprpop[,1], toprpop[,4], Inf)
 									pairs <- rbind(pairs, pf$mated)
 								}
 								if (length(psmID) > 0) {	# pair off previously paired males
 									topr <- c(psmID, fsinID)
-									toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=13)
+									toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=14)
 									pm <- pairoff(toprpop[,1], toprpop[,4], Inf)
 									pairs <- rbind(pairs, pm$mated)
 								}
@@ -840,7 +946,7 @@ run.one.repl <- function (r) {
 							fsinID <- fsinID[!(fsinID %in% pairs)]
 							msinID <- msinID[!(msinID %in% pairs)]
 							sinID <- c(msinID, fsinID)	# remaining single individuals to pair
-							sinpop <- matrix(subset(population, population[,1] %in% sinID), ncol=13)
+							sinpop <- matrix(subset(population, population[,1] %in% sinID), ncol=14)
 							pn <- pairoff(sinpop[,1], sinpop[,4], Inf)
 							if(nrow(pairs) > 0) pairs <- rbind(pairs, pn$mated)
 							else pairs <- pn$mated
@@ -850,11 +956,11 @@ run.one.repl <- function (r) {
 					if (retainBreeders == "male") {
 						if (matingLength == "lifelong") if(nrow(mwid) > 0){
 							singles <- sort(c(singles, fwidID))	# Intact pairs remain; widowed females join singles
-							sing <- matrix(subset(population, population[,1] %in% singles), ncol=13)	
-							fsin <- matrix(subset(sing,sing[,4]==1), ncol=13)
+							sing <- matrix(subset(population, population[,1] %in% singles), ncol=14)	
+							fsin <- matrix(subset(sing,sing[,4]==1), ncol=14)
 							if(nrow(fsin) > 0) fsinID <- c(fsin[,1])	# single female ID
 							topr <- c(mwidID, fsinID)	# widowed males and single females to pair off
-							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=13)
+							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=14)
 							mp <- pairoff(toprpop[,1], toprpop[,4], Inf)	# pair off single females with established males
 							singles <- singles[!(singles %in% mp$mated)]
 							if(length(mp$mated)>0){
@@ -864,11 +970,11 @@ run.one.repl <- function (r) {
 						}
 						if (matingLength == "seasonal"){
 							singles <- sort(c(singles, fprID))	# when no long-term mating, all females put into singles to re-pair
-							sing <- matrix(subset(population, population[,1] %in% singles), ncol=13)	
-							fsin <- matrix(subset(sing,sing[,4]==1), ncol=13)
+							sing <- matrix(subset(population, population[,1] %in% singles), ncol=14)	
+							fsin <- matrix(subset(sing,sing[,4]==1), ncol=14)
 							if(nrow(fsin) > 0) fsinID <- c(fsin[,1])	# single female ID
 							topr <- c(mprID, fsinID)	# previously paired males and all females
-							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=13)
+							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=14)
 							prs <- pairoff(toprpop[,1], toprpop[,4], Inf)	# pair off females with established males
 							singles <- singles[!(singles %in% prs$mated)]
 							if(length(prs$mated)>0) pairs <- prs$mated
@@ -878,11 +984,11 @@ run.one.repl <- function (r) {
 					if (retainBreeders=="female") {
 						if (matingLength == "lifelong") if(length(fwidID)>0){
 							singles <- sort(c(singles, mwidID))	# Intact pairs remain; widowed males join singles
-							sing <- matrix(subset(population, population[,1] %in% singles), ncol=13)
-							msin <- matrix(subset(sing,sing[,4]==2), ncol=13)
+							sing <- matrix(subset(population, population[,1] %in% singles), ncol=14)
+							msin <- matrix(subset(sing,sing[,4]==2), ncol=14)
 							if(nrow(msin) > 0) msinID <- c(msin[,1])	# single male ID
 							topr <- c(fwidID, msinID)	# widowed females and single males to pair off
-							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=13)
+							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=14)
 							fp <- pairoff(toprpop[,1], toprpop[,4], Inf)	# pair off single males with established females
 							singles <- singles[!(singles %in% fp$mated)]
 							if(length(fp$mated)>0){
@@ -892,11 +998,11 @@ run.one.repl <- function (r) {
 						}
 						if (matingLength == "seasonal") {
 							singles <- sort(c(singles, mprID))	# when no long-term mating, all males put into singles to re-pair
-							sing <- matrix(subset(population, population[,1] %in% singles), ncol=13)
-							msin <- matrix(subset(sing,sing[,4]==2),ncol=13)
+							sing <- matrix(subset(population, population[,1] %in% singles), ncol=14)
+							msin <- matrix(subset(sing,sing[,4]==2),ncol=14)
 							if(nrow(msin) > 0) msinID <- c(msin[,1])	# single male ID
 							topr <- c(fprID, msinID)	# previously paired females and all males
-							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=13)
+							toprpop <- matrix(subset(population, population[,1] %in% topr), ncol=14)
 							prs <- pairoff(toprpop[,1], toprpop[,4], Inf)	# pair off any males with established females
 							singles <- singles[!(singles %in% prs$mated)]
 							if(length(prs$mated)>0) pairs <- matrix(prs$mated,ncol=2)
@@ -904,21 +1010,24 @@ run.one.repl <- function (r) {
 						}
 					}
 					if(length(singles) > 0) {			# If still singles left, make more pairs
-						sing <- matrix(subset(population, population[,1] %in% singles), ncol=13)
+						sing <- matrix(subset(population, population[,1] %in% singles), ncol=14)
 						more <- pairoff(sing[,1], sing[,4], Inf)
 						pairs <- matrix(rbind(pairs, more$mated),ncol=2)
 						singles <- singles[!(singles %in% more$mated)]
 					}
 				}
+				# Tally the number of mates for each individual (cumulative over all years), for both sexes.  Tallied in new column 14 of population object.
+				prlist <- c(pairs)
+				for(m in 1:nrow(population)) population[m,14] <- population[m,14] + length(prlist[which(prlist==population[m,1])])
 			}
 		}
-		
+	
 		## UPDATE LIVE INDIVIDUALS; # YEARS ALIVE, # YEARS BRED FOR EACH	
 		singles <- singles[!(singles==0)]
 		liveadults <- unique(c(pairs, singles)) 
 		if(nrow(population) > 0){
 			# Drop dead individuals if specified:
-			if(!trackall) population <- matrix(population[which(population[,1] %in% liveadults),], ncol=13)
+			if(!trackall) population <- matrix(population[which(population[,1] %in% liveadults),], ncol=14)
 			numpresent <- length(liveadults)
 			if(!KAdults) numpresent <- numpresent + nrow(nonbreeders)	# nonbreeders are included in K
 			# Add 1 year to col 11 in population/nonbreeders for all individuals alive (in nonbreeders or liveadults):			
@@ -926,22 +1035,21 @@ run.one.repl <- function (r) {
 				tally <- c(nonbreeders[,11] + 1)
 				nonbreeders <- matrix(cbind(nonbreeders[,1:10, drop=FALSE], tally, nonbreeders[,12:13, drop=FALSE]), ncol=13)
 			}			
-			popalive <- matrix(population[which(population[,1] %in% liveadults),], ncol=13)
+			popalive <- matrix(population[which(population[,1] %in% liveadults),], ncol=14)
 			tally <- c(popalive[,11] + 1)	
-			popalive <- matrix(cbind(popalive[,1:10, drop=FALSE], tally, popalive[,12:13, drop=FALSE]), ncol=13)
-			popdead <- matrix(population[-(which(population[,1] %in% liveadults)),], ncol=13)
+			popalive <- matrix(cbind(popalive[,1:10, drop=FALSE], tally, popalive[,12:14, drop=FALSE]), ncol=14)
+			popdead <- matrix(population[-(which(population[,1] %in% liveadults)),], ncol=14)
 			population <- rbind(popdead, popalive)	
 			# Add 1 year bred to col 12 for individuals in pairs:
-			popprs <- matrix(population[which(population[,1] %in% pairs),], ncol=13)
+			popprs <- matrix(population[which(population[,1] %in% pairs),], ncol=14)
 			if(nrow(popprs) > 0) {
 				tally <- popprs[,12] + 1
-				popprs <- matrix(cbind(popprs[,1:11, drop=FALSE], tally, popprs[,13, drop=FALSE]), ncol=13)	
-				popunpr <- matrix(population[-(which(population[,1] %in% pairs)),], ncol=13)
-				population <- matrix(rbind(popprs, popunpr), ncol=13)
+				popprs <- matrix(cbind(popprs[,1:11, drop=FALSE], tally, popprs[,13:14, drop=FALSE]), ncol=14)	
+				popunpr <- matrix(population[-(which(population[,1] %in% pairs)),], ncol=14)
+				population <- matrix(rbind(popprs, popunpr), ncol=14)
 			}
 		}
-
-
+		
 		## CENSUS	
 		adults <- unique(c(pairs,singles))		# list of IDs of all live adults
 		allID <- c(adults, nonbreeders[,1])	# unique IDs of all live individuals
@@ -953,15 +1061,15 @@ run.one.repl <- function (r) {
 		census[y,1] <- length(adults)	          	# number of adults	
 		census[y,2] <- length(unique(c(pairs[,1])))  # number of breeding females
 		census[y,3] <- length(unique(c(pairs[,2])))	# number of breeding males
-		popprs <- matrix(population[which(population[,1] %in% unique(c(pairs))),], ncol=13)
-		popalive <- matrix(population[which(population[,1] %in% adults),], ncol=13)	# live adults
+		popprs <- matrix(population[which(population[,1] %in% unique(c(pairs))),], ncol=14)
+		popalive <- matrix(population[which(population[,1] %in% adults),], ncol=14)	# live adults
 		if(GeneCount == "adult"){
 			census[y,4] <- sum(popprs[,5:6])  	# number of rare alleles in breeding adult population
 			counted <- popprs
 		}	
 		else{
 			census[y,4] <- sum(popalive[,5:6]) + sum(nonbreeders[,5:6]) 	# number of rare alleles in whole population
-			counted <- rbind(popalive, nonbreeders)
+			counted <- rbind(popalive, cbind(nonbreeders, rep(0, nrow(nonbreeders))))
 		}	
 		census[y,5] <- npr               			# number of pairs
 		census[y,6] <- nnb			# number of nonbreeders
@@ -1002,14 +1110,14 @@ run.one.repl <- function (r) {
 		
 		## INDIVIDUAL INFORMATION - from last year of simulation only (contains all individuals from all years, if trackall = TRUE)
 		if(y == nyears) {
-			totalpop <- rbind(population, nonbreeders)		
-			indivdata <- totalpop[,c(1,2,3,7,8,11,12,13)]	# only keep relevant information (ncol=8)		
+			totalpop <- rbind(population, cbind(nonbreeders, rep(0, nrow(nonbreeders))))	
+			indivdata <- totalpop[,c(1,2,3,7,8,11,12,13,14,4)]	# only keep relevant information (ncol=10)		
 		}
-
 	}		#  End year loop
 	out[[1]] <- census
 	out[[2]] <- indivdata
-	rm(census, indivdata, population, nonbreeders)
+	out[[3]] <- reprostats
+	rm(census, indivdata, population, nonbreeders, reprostats)
 	if(is.wholenumber(r/nreplprint)) cat("Replicate #", r, "finished at", paste(Sys.time()), sep=" ", "\n")
 	flush.console()
 	out
@@ -1105,19 +1213,19 @@ indiv.summary <- function(adata, genlength, alpha=0.05){
 # alpha: significance level for confidence limits
 	nrepl <- length(adata)
 	nyears <- dim(adata[[1]][[1]])[1]
-	indivOUT <- array(dim = c(4, 8, nrepl))
-	colnames(indivOUT) <- c("n", "pbreed", "pbreed.LCL", "pbreed.UCL", "YrsBred", "YrsBredBr", "lifespan", "effectivegen")
+	indivOUT <- array(dim = c(4, 9, nrepl))
+	colnames(indivOUT) <- c("n", "pbreed", "pbreed.LCL", "pbreed.UCL", "YrsBred", "YrsBredBr", "lifespan", "effectivegen", "NMatings")
 	rownames(indivOUT) <- c("starters", "supplements", "locals", "migrants")
 	
 	for(r in 1:nrepl) {
-		me <- matrix(adata[[r]][[2]], ncol=8)	# individual data
-			# cols: ("ID", "dam", "sire", "origin", "birthyr", "NYrAlive", "NYrBred")
+		me <- matrix(adata[[r]][[2]], ncol=10)	# individual data
+			# cols: ("ID", "dam", "sire", "origin", "birthyr", "NYrAlive", "NYrBred", "NMatings")
 		if(nrow(me) > 0){	# population did not go extinct
 			for (i in 1:4){		# for each origin
-				chosen <- matrix(me[me[,4]==i,], ncol=8)	# indiv of origin i	
-				chosen <- matrix(chosen[which(chosen[,8] < (nyears - genlength)),], ncol=8)	# take out those added during the last generation (unequal chance of breeding)				
+				chosen <- matrix(me[me[,4]==i,], ncol=10)	# indiv of origin i	
+				chosen <- matrix(chosen[which(chosen[,9] < (nyears - genlength)),], ncol=10)	# take out those added during the last generation (unequal chance of breeding)				
 				indivOUT[i,1,r] <- nrow(chosen)	# total number of origin i
-				bred <- matrix(chosen[chosen[,7] > 0,], ncol=8)
+				bred <- matrix(chosen[chosen[,7] > 0,], ncol=10)
 				pbred <- round(nrow(bred) / nrow(chosen), digits=2)	# proportion that bred at some point				
 				indivOUT[i,2,r] <- pbred
 				indivOUT[i,3,r] <- Blcl(pbred, nrow(chosen), alpha)
@@ -1127,18 +1235,19 @@ indiv.summary <- function(adata, genlength, alpha=0.05){
 				indivOUT[i,7,r] <- round(mean(chosen[,6]), digits=2)	#  mean lifespan
 				effgen <- (nrow(chosen)*nrow(bred) / nrow(chosen)) / (nyears/genlength)	# average number of effective individuals per generation
 				indivOUT[i,8,r] <- effgen
-				if(i < 3) indivOUT[i,8,r] <- NA		# founders not added in every generation so don't calculate this			
+				if(i < 3) indivOUT[i,8,r] <- NA		# founders not added in every generation so don't calculate this
+				indivOUT[i,9,r] <- round(mean(chosen[,9], digits=2))	# mean number of matings (across males and females)
 			}
 		}		
-		else indivOUT[,,r] <- matrix(NA, nrow=4, ncol=8)	# population had already gone extinct
+		else indivOUT[,,r] <- matrix(NA, nrow=4, ncol=9)	# population had already gone extinct
 	}
 	
 	### AVERAGE EACH CELL ACROSS REPLICATES
-	indivinfo <- matrix(nrow=4, ncol=8)
+	indivinfo <- matrix(nrow=4, ncol=9)
 	for(j in 1:nrow(indivOUT)){ for(c in 1:ncol(indivOUT)){
 		indivinfo[j, c] <- mean(as.numeric(indivOUT[j,c,]), na.rm=TRUE)	# averaged across replicates (with any NA values, from replicates in which population went extinct, removed)
 	}}
-	colnames(indivinfo) <- c("n", "pbreed", "pbreed.LCL", "pbreed.UCL", "YrsBred", "YrsBredBr", "lifespan", "effectivegen")
+	colnames(indivinfo) <- c("n", "pbreed", "pbreed.LCL", "pbreed.UCL", "YrsBred", "YrsBredBr", "lifespan", "effectivegen", "NMatings")
 	rownames(indivinfo) <- c("starters", "supplement", "locals", "migrants")	
 	indivinfo
 }	
@@ -1146,26 +1255,79 @@ indiv.summary <- function(adata, genlength, alpha=0.05){
 
 ########################################################################
 
+# List of number of matings for each individual of the specified sex, over whole lifetime and all years
+LRS.summary <- function(adata, sex){
+	nrepl <- length(adata)
+	nyears <- dim(adata[[1]][[1]])[1]
+	msOUT <- matrix(nrow=0, ncol=2)
+	colnames(msOUT) <- c("ID","NMatings")
+	for(r in 1:nrepl) {
+		me <- matrix(adata[[r]][[2]], ncol=10)	# individual data
+			# cols: ("ID", "dam", "sire", "origin", "birthyr", "NYrAlive", "NYrBred", "NMatings", "Sex")
+		if(nrow(me) > 0){	# population did not go extinct
+			if(sex=="female") chosen <- subset(me, me[,10]==1)
+			if(sex=="male") chosen <- subset(me, me[,10]==2)
+			msOUT <- rbind(msOUT, cbind(chosen[,1], chosen[,9]))
+		}
+	}
+	msOUT
+}
+########################################################################
+
+# Average reproductive success of each sex, by age, in final year of simulation
+agerepro.summary <- function(adata, maxage, sex){
+	nrepl <- length(adata)
+	nalive <- nmatings <- noffspring <- matrix(NA, nrow=maxage+1, ncol=nrepl)	# store the values to average across replicates
+	arOUT <- matrix(nrow=maxage+1, ncol=7)
+	arOUT[,1] <- c(0:maxage)
+	for(r in 1:nrepl){
+		me <- matrix(adata[[r]][[3]], ncol=5)	# repro success data
+			# cols:  ID, sex, age, num matings, num offspring (last two are just for final year of simulation)
+		if(nrow(me) > 0){
+			if(sex=="female") chosen <- subset(me, me[,2]==1)
+			if(sex=="male") chosen <- subset(me, me[,2]==2)
+			if(nrow(chosen) > 0) for(a in 1:(maxage+1)){
+				if((a-1) %in% chosen[,3]){
+					nalive[a,r] <- nrow(matrix(chosen[which(chosen[,3]==(a-1)),],ncol=ncol(chosen)))
+					nmatings[a,r] <- mean(chosen[which(chosen[,3]==(a-1)),4])
+					noffspring[a,r] <- mean(chosen[which(chosen[,3]==(a-1)),5])
+				}
+			}
+		}
+	}
+	for(a in 1:(maxage+1)){
+		arOUT[a,2] <- mean(nalive[a,], na.rm=TRUE)
+		arOUT[a,3] <- sd(nalive[a,], na.rm=TRUE)
+		arOUT[a,4] <- mean(nmatings[a,], na.rm=TRUE)
+		arOUT[a,5] <- sd(nmatings[a,], na.rm=TRUE)
+		arOUT[a,6] <- mean(noffspring[a,], na.rm=TRUE)
+		arOUT[a,7] <- sd(noffspring[a,], na.rm=TRUE)
+	}
+	colnames(arOUT) <- c('age','alive.mean','alive.sd','matings.mean','matings.sd','offspring.mean','offspring.sd')
+	arOUT
+}
+# Note the SDs shown are across, not within, replicates.
+
 
 pedigree.summary <- function(adata){
 ## Get mean and variance of inbreeding coefficient for each year, across replicates
 ## Requires package pedigree (which requires Matrix, lattice, HaploSim, reshape)
-	requireNamespace("pedigree")
+	requireNamespace(pedigree)
 	nrepl <- length(adata)
 	nyears <- dim(adata[[1]][[1]])[1]
 	outF <- array(dim = c(nyears, 2, nrepl))
 	for(r in 1:nrepl) {
-		me <- matrix(adata[[r]][[2]], ncol=8)	# individual data (ID, dam, sire, origin, birthyr, nyrsalive, nyrsbred)
+		me <- matrix(adata[[r]][[2]], ncol=10)	# individual data (ID, dam, sire, origin, birthyr, nyrsalive, nyrsbred)
 		if(nrow(me) > 0){	# population exists
 			IDdamsire <- data.frame(me[,1], me[,2], me[,3])
 			colnames(IDdamsire) <- c("ID", "dam", "sire")
 			if(nrow(IDdamsire) > 0){
-				ord <- pedigree::orderPed(IDdamsire) # Order to work with new requirements for calcInbreeding
+				ord <- orderPed(IDdamsire) # Order to work with new requirements for calcInbreeding
 				IDdamsire <- IDdamsire[order(ord),]
-				Fvalues <- pedigree::calcInbreeding(IDdamsire)	# calculate F of each individual
+				Fvalues <- calcInbreeding(IDdamsire)	# calculate F of each individual
 			}
 			else Fvalues <- numeric(0)
-			meF <- matrix(cbind(me, c(Fvalues)), ncol=9)	# attach F values to individual information
+			meF <- matrix(cbind(me, c(Fvalues)), ncol=ncol(me)+1)	# attach F values to individual information
 			avgF <- rep(NA, nyears)
 			varF <- rep(NA, nyears)
 			for(y in 1:nyears) {	# subset the individuals alive during that year

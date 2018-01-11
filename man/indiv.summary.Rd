@@ -16,7 +16,9 @@ indiv.summary(adata, genlength, alpha=0.05)
 
 \arguments{
  \item{adata}{ list of output from \code{aRetain} }
- \item{genlength}{ mean age of simulated individuals (breeding pairs only), as returned by \code{census.summary} (use the MeanAge value where it stabilizes after recovering from any founder age effects) }
+ \item{genlength}{ mean age of simulated individuals (breeding pairs only), as 
+ returned by \code{census.summary} (use the MeanAge value where it stabilizes 
+ after recovering from any founder age effects) }
  \item{alpha}{ confidence level e.g. 0.05 for 95\% intervals}
 }
 
@@ -35,12 +37,15 @@ bred) }
 \item{YrsBredBr}{ mean # of years bred per individual (that bred at least once) }
 \item{lifespan}{ mean lifespan in the population }
 \item{effectivegen}{ mean # of individuals that bred each generation }
+\item{NMatings}{ mean # of total lifetime matings, across individuals }
 
 }
 \references{ 
 
-Weiser, E.L., Grueber, C. E., and I. G. Jamieson.  In review.  AlleleRetain:  A program to assess management options for conserving allelic diversity in small, isolated populations.  Molecular Ecology Resources.
+Weiser, E.L., Grueber, C. E., and I. G. Jamieson. 2012. AlleleRetain: A program 
+to assess management options for conserving allelic diversity in small, isolated 
+populations. Molecular Ecology Resources 12:1161-1167.
 
 }
 
-\author{ Emily Weiser \email{emily.l.weiser@gmail.com} }
+\author{ Emily L. Weiser \email{emily.l.weiser@gmail.com} }
